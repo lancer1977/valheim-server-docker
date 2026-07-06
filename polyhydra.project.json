@@ -1,0 +1,15 @@
+{
+  "lastUpdated": "2026-07-06",
+  "name": "valheim-server-docker",
+  "repoLabel": "lancer1977/valheim-server-docker",
+  "schemaVersion": 1,
+  "slug": "valheim-server-docker",
+  "status": "active",
+  "summary": "![Valheim](https://raw.githubusercontent.com/lloesche/valheim-server-docker/main/misc/Logo_valheim.png \"Valheim\")",
+  "tags": [
+    "game-support",
+    "python",
+    "tests",
+    "docker"
+  ]
+}
