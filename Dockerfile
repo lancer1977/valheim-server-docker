@@ -29,7 +29,7 @@ RUN curl -L -o /tmp/busybox.tar.bz2 https://busybox.net/downloads/busybox-${BUSY
 WORKDIR /build/env2cfg
 COPY ./env2cfg/ /build/env2cfg/
 RUN if [ "${TESTS:-true}" = true ]; then \
-    pip3 install tox \
+    pip3 install --break-system-packages tox \
     && tox \
     ; \
     fi
