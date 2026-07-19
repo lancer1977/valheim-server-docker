@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim AS build-env
+FROM debian:bullseye-slim AS build-env
 ENV DEBIAN_FRONTEND=noninteractive
 ARG TESTS
 ARG SOURCE_COMMIT
