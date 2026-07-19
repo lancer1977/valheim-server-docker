@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim AS build-env
+FROM debian:bookworm-slim AS build-env
 ENV DEBIAN_FRONTEND=noninteractive
 ARG TESTS
 ARG SOURCE_COMMIT
@@ -104,7 +104,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive
 COPY --from=build-env /usr/local/ /usr/local/
 COPY --from=i386-libs /lib/ld-linux.so.2 /lib/ld-linux.so.2
