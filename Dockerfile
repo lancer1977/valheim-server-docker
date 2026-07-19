@@ -93,7 +93,7 @@ RUN mkdir -p /usr/local/etc/supervisor/conf.d/ \
 RUN echo "${SOURCE_COMMIT:-unknown}" > /usr/local/etc/git-commit.HEAD
 
 
-FROM --platform=linux/386 debian:buster-slim AS i386-libs
+FROM --platform=linux/386 debian:bullseye-slim AS i386-libs
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get -y --no-install-recommends install \
