@@ -90,8 +90,16 @@ jobs:
             -e SERVER_PASS=secret \
             ${{ matrix.config.env }} \
             valheim-test
+          set +e
           timeout --foreground --signal=TERM --kill-after=30s 20m \
             docker exec "$container_name" /usr/local/bin/valheim-tests "${{ matrix.config.name }}"
+          test_status=$?
+          set -e
+          if [ "$test_status" -ne 0 ]; then
+            docker inspect --format '{{.State.ExitCode}} OOMKilled={{.State.OOMKilled}} Error={{.State.Error}}' "$container_name" || true
+            docker logs "$container_name" || true
+          fi
+          exit "$test_status"
 
   build_and_push:
     name: Build and Push Docker Image
