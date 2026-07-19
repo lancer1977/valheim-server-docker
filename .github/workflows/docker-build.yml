@@ -12,8 +12,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: true
+  group: valheim-docker-build-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -57,6 +57,8 @@ jobs:
     permissions:
       contents: read
     strategy:
+      fail-fast: false
+      max-parallel: 1
       matrix:
         config:
           - name: default
@@ -76,8 +78,10 @@ jobs:
 
       - name: Run container with ${{ matrix.config.name }} settings
         run: |
-          docker run -d --rm \
-            --name valheim-test-${{ matrix.config.name }} \
+          container_name="valheim-test-${{ matrix.config.name }}"
+          trap 'docker stop "$container_name" >/dev/null 2>&1 || true; docker rm "$container_name" >/dev/null 2>&1 || true' EXIT
+          docker run -d \
+            --name "$container_name" \
             --cap-add=sys_nice \
             --stop-timeout 120 \
             -p 2456-2457:2456-2457/udp \
@@ -86,7 +90,16 @@ jobs:
             -e SERVER_PASS=secret \
             ${{ matrix.config.env }} \
             valheim-test
-          docker exec valheim-test-${{ matrix.config.name }} /usr/local/bin/valheim-tests "${{ matrix.config.name }}"
+          set +e
+          timeout --foreground --signal=TERM --kill-after=30s 20m \
+            docker exec "$container_name" /usr/local/bin/valheim-tests "${{ matrix.config.name }}"
+          test_status=$?
+          set -e
+          if [ "$test_status" -ne 0 ]; then
+            docker inspect --format '{{.State.ExitCode}} OOMKilled={{.State.OOMKilled}} Error={{.State.Error}}' "$container_name" || true
+            docker logs "$container_name" || true
+          fi
+          exit "$test_status"
 
   build_and_push:
     name: Build and Push Docker Image
