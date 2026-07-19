@@ -76,8 +76,10 @@ jobs:
 
       - name: Run container with ${{ matrix.config.name }} settings
         run: |
+          container_name="valheim-test-${{ matrix.config.name }}"
+          trap 'docker stop "$container_name" >/dev/null 2>&1 || true' EXIT
           docker run -d --rm \
-            --name valheim-test-${{ matrix.config.name }} \
+            --name "$container_name" \
             --cap-add=sys_nice \
             --stop-timeout 120 \
             -p 2456-2457:2456-2457/udp \
@@ -86,7 +88,8 @@ jobs:
             -e SERVER_PASS=secret \
             ${{ matrix.config.env }} \
             valheim-test
-          docker exec valheim-test-${{ matrix.config.name }} /usr/local/bin/valheim-tests "${{ matrix.config.name }}"
+          timeout --foreground --signal=TERM --kill-after=30s 10m \
+            docker exec "$container_name" /usr/local/bin/valheim-tests "${{ matrix.config.name }}"
 
   build_and_push:
     name: Build and Push Docker Image
