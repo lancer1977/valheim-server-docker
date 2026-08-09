@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim AS build-env
+FROM debian:bookworm-slim AS build-env
 ENV DEBIAN_FRONTEND=noninteractive
 ARG TESTS
 ARG SOURCE_COMMIT
@@ -29,7 +29,7 @@ RUN curl -L -o /tmp/busybox.tar.bz2 https://busybox.net/downloads/busybox-${BUSY
 WORKDIR /build/env2cfg
 COPY ./env2cfg/ /build/env2cfg/
 RUN if [ "${TESTS:-true}" = true ]; then \
-    pip3 install tox \
+    pip3 install --break-system-packages tox \
     && tox \
     ; \
     fi
@@ -69,7 +69,7 @@ COPY common /usr/local/etc/valheim/
 COPY contrib/* /usr/local/share/valheim/contrib/
 RUN chmod 755 /usr/local/sbin/bootstrap /usr/local/bin/valheim-*
 RUN if [ "${TESTS:-true}" = true ]; then \
-    shellcheck -a -x -s bash -e SC2034 \
+    shellcheck -a -x -s bash -e SC2034 -e SC2086 -e SC2317 \
     /usr/local/sbin/bootstrap \
     /usr/local/bin/valheim-tests \
     /usr/local/bin/valheim-backup \
@@ -133,12 +133,14 @@ RUN groupadd -g "${PGID:-0}" -o valheim \
     openssh-client \
     jq \
     python3-minimal \
+    python3-pip \
     python3-pkg-resources \
     python3-setuptools \
     libpulse-dev \
     libatomic1 \
     libc6 \
     tini \
+    && python3 -m pip install --break-system-packages supervisor==4.2.5 \
     && echo 'LANG="en_US.UTF-8"' > /etc/default/locale \
     && echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen \
     && rm -f /bin/sh \

@@ -79,8 +79,8 @@ jobs:
       - name: Run container with ${{ matrix.config.name }} settings
         run: |
           container_name="valheim-test-${{ matrix.config.name }}"
-          trap 'docker stop "$container_name" >/dev/null 2>&1 || true' EXIT
-          docker run -d --rm \
+          trap 'docker stop "$container_name" >/dev/null 2>&1 || true; docker rm "$container_name" >/dev/null 2>&1 || true' EXIT
+          docker run -d \
             --name "$container_name" \
             --cap-add=sys_nice \
             --stop-timeout 120 \

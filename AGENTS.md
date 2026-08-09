@@ -21,6 +21,19 @@ The script runs `go test ./...` for `valheim-logfilter` and the `env2cfg` Python
 - Do not commit server worlds, backups, tokens, Discord webhooks, Steam credentials, or local `valheim.env` files.
 - Treat Docker image publishing as a separate release path; local validation should stay fast enough for routine maintenance.
 
+## Global DevOps GitHub–Kanban Contract
+
+For DevOps, infrastructure, deployment, security, GitOps, and service work:
+
+1. GitHub is authoritative for Issues, PRs, CI, reviews, merges, releases, and delivery state, and is the execution queue.
+2. One GitHub Issue should normally produce one PR directly to `main`.
+3. Before branch work or a PR, fetch `origin/main` and reconcile against the current remote default branch. Do not build branch-on-branch PR stacks unless an explicit integration owner and final target are stated.
+4. Do not merge, deploy, close issues, rotate secrets, or claim production success unless the task explicitly authorizes it and verification evidence exists.
+5. If branches diverge, stop merging the stack. Create one integration branch from current `origin/main`, resolve semantic conflicts deliberately, run tests, and open one replacement PR to `main`.
+6. For security or infrastructure work, provide exact build, test, and diff evidence and require fresh independent review before merge. Never put secrets in code, logs, PRs, or comments.
+7. A task is not complete because a local test passes or a Kanban card says done. Completion requires the requested GitHub state and, when applicable, verified live behavior.
+8. When creating a PR, state its target branch, linked issue, validation output, and whether it supersedes prior PRs. Do not leave divergent worker PRs ambiguous.
+
 <!-- dev-forge:low-interruption:start version=1 -->
 ## Low-Interruption Execution
 
