@@ -103,12 +103,14 @@ jobs:
 
   build_and_push:
     name: Build and Push Docker Image
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'
+    # `dev` is this fork's default and only active branch — `main` does not
+    # exist here. The old guard also allowed `main`, which meant the `latest`
+    # tag below could never be produced. See the tag block.
+    if: github.ref == 'refs/heads/dev'
     needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
 
     steps:
       - name: Check out repository
@@ -117,47 +119,44 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_PAT }}
-
       - name: Login to Docker Hub
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@v5
         with:
+          # This fork publishes under its own namespace. The upstream
+          # `lloesche/valheim-server` targets are not writable from here and
+          # were the reason every push on `dev` failed.
           images: |
-            ghcr.io/lloesche/valheim-server
-            lloesche/valheim-server
+            lancer1977/valheim-server-docker
+          # `latest` is what homelab-gitops deploys, and `dev` is the branch
+          # that produces it in this fork.
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/dev' }}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=sha
           labels: |
-            org.opencontainers.image.title=valheim-server
+            org.opencontainers.image.title=valheim-server-docker
             org.opencontainers.image.description=Valheim Server
-            org.opencontainers.image.url=https://github.com/lloesche/valheim-server-docker
-            org.opencontainers.image.source=https://github.com/lloesche/valheim-server-docker
+            org.opencontainers.image.url=https://github.com/lancer1977/valheim-server-docker
+            org.opencontainers.image.source=https://github.com/lancer1977/valheim-server-docker
             org.opencontainers.image.version=${{ github.sha }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.licenses=Apache-2.0
-            org.opencontainers.image.documentation=https://github.com/lloesche/valheim-server-docker/blob/main/README.md
+            org.opencontainers.image.documentation=https://github.com/lancer1977/valheim-server-docker/blob/dev/README.md
           annotations: |
             org.opencontainers.image.description=Valheim Server
-            org.opencontainers.image.source=https://github.com/lloesche/valheim-server-docker
+            org.opencontainers.image.source=https://github.com/lancer1977/valheim-server-docker
             org.opencontainers.image.licenses=Apache-2.0
 
       - name: Build and push Docker image
+        id: docker_build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -168,3 +167,15 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha
+
+      # The QA runbook pins deploys by digest rather than by a floating tag,
+      # so surface it in the run summary instead of only in the build log.
+      - name: Publish image digest to the run summary
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "### Published image" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "digest: ${{ steps.docker_build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "tags:" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
