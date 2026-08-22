@@ -1,9 +1,9 @@
-# lloesche/valheim-server Docker image
+# lancer1977/valheim-server-docker Docker image
 
 ![Valheim](https://raw.githubusercontent.com/lloesche/valheim-server-docker/main/misc/Logo_valheim.png "Valheim")
 
 Valheim Server in a Docker Container (with [BepInEx](#bepinexpack-valheim) and [ValheimPlus](#valheimplus) support)  
-This project is hosted at [https://github.com/lloesche/valheim-server-docker](https://github.com/lloesche/valheim-server-docker)
+This project is hosted at [https://github.com/lancer1977/valheim-server-docker](https://github.com/lancer1977/valheim-server-docker)
 
 # Table of contents
 
@@ -69,7 +69,7 @@ This project is hosted at [https://github.com/lloesche/valheim-server-docker](ht
 
 # Basic Docker Usage
 
-The name of the Docker image is `ghcr.io/lloesche/valheim-server`.
+The name of the Docker image is `ghcr.io/lancer1977/valheim-server-docker`.
 
 Volume mount the server config directory to `/config` within the Docker container.
 
@@ -93,7 +93,7 @@ $ docker run -d \
     -e SERVER_NAME="My Server" \
     -e WORLD_NAME="Neotopia" \
     -e SERVER_PASS="secret" \
-    ghcr.io/lloesche/valheim-server
+    ghcr.io/lancer1977/valheim-server-docker
 ```
 
 Warning: `SERVER_PASS` must be at least 5 characters long. Otherwise `valheim_server.x86_64` will refuse to start!
@@ -863,7 +863,7 @@ Here is an example `docker-compose.yaml` file that we will use in the next steps
 ```yaml
 services:
   valheim:
-    image: lloesche/valheim-server
+    image: ghcr.io/lancer1977/valheim-server-docker
     cap_add:
       - sys_nice
     volumes:
@@ -910,7 +910,7 @@ SERVER_PUBLIC=true
 
 ![Qnap update Step 2](https://raw.githubusercontent.com/lloesche/valheim-server-docker/main/misc/qnap_update_button.png "Qnap update Step 2")
 
-In the image name you have to specify the image from the container definition `lloesche/valheim-server`.
+In the image name you have to specify the image from the container definition `ghcr.io/lancer1977/valheim-server-docker`.
 
 ![Qnap update Step 3](https://raw.githubusercontent.com/lloesche/valheim-server-docker/main/misc/qnap_update_pull.png "Qnap update Step 3")
 
