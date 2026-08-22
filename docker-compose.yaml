@@ -1,6 +1,6 @@
 services:
   valheim:
-    image: ghcr.io/lloesche/valheim-server
+    image: ghcr.io/lancer1977/valheim-server-docker
     cap_add:
       - sys_nice
     volumes:
