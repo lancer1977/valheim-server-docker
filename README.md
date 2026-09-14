@@ -401,7 +401,7 @@ Then enable the Docker container on system boot
 
 ```
 $ sudo mkdir -p /etc/valheim /opt/valheim
-$ sudo curl -o /etc/systemd/system/valheim.service https://raw.githubusercontent.com/lloesche/valheim-server-docker/main/valheim.service
+$ sudo curl -o /etc/systemd/system/valheim.service https://raw.githubusercontent.com/lancer1977/valheim-server-docker/dev/valheim.service
 $ sudo systemctl daemon-reload
 $ sudo systemctl enable valheim.service
 $ sudo systemctl start valheim.service
@@ -420,7 +420,7 @@ WORLD_NAME=Dedicated
 SERVER_PASS=secret
 SERVER_PUBLIC=true
 EOF
-curl -o $HOME/valheim-server/docker-compose.yaml https://raw.githubusercontent.com/lloesche/valheim-server-docker/main/docker-compose.yaml
+curl -o $HOME/valheim-server/docker-compose.yaml https://raw.githubusercontent.com/lancer1977/valheim-server-docker/dev/docker-compose.yaml
 docker compose up -d
 ```
 
@@ -446,7 +446,7 @@ CDK Project for spinning up a Valheim game server on AWS Using ECS Fargate and A
 
 ```
 $ sudo mkdir -p /var/lib/valheim/{config,data}
-$ sudo curl -o /var/lib/valheim/valheim.nomad https://raw.githubusercontent.com/lloesche/valheim-server-docker/main/valheim.nomad
+$ sudo curl -o /var/lib/valheim/valheim.nomad https://raw.githubusercontent.com/lancer1977/valheim-server-docker/dev/valheim.nomad
 $ sudo nomad job run /var/lib/valheim/valheim.nomad
 ```
 
