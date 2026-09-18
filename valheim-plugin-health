@@ -29,9 +29,9 @@
 # Include defaults and common functions. The location is overridable so the
 # unit tests can supply stubs without recreating the container filesystem.
 valheim_etc="${VALHEIM_ETC:-/usr/local/etc/valheim}"
-# shellcheck source=defaults
+# shellcheck source=/usr/local/etc/valheim/defaults
 . "$valheim_etc/defaults"
-# shellcheck source=common
+# shellcheck source=/usr/local/etc/valheim/common
 . "$valheim_etc/common"
 
 # Byte offset into the loader log that we have already accounted for.

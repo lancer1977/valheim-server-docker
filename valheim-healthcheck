@@ -10,7 +10,7 @@
 # Exit codes follow Docker's contract: 0 healthy, 1 unhealthy. Startup states
 # report unhealthy and are expected to be absorbed by HEALTHCHECK --start-period.
 
-# shellcheck source=defaults
+# shellcheck source=/usr/local/etc/valheim/defaults
 . "${VALHEIM_ETC:-/usr/local/etc/valheim}/defaults"
 
 status=unknown
