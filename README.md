@@ -158,6 +158,10 @@ Without it you will see a message `Warning: failed to set thread priority` in th
 | `VALHEIM_PLUS_REPO`         | `Grantapher/ValheimPlus` | Which ValheimPlus Github repo to use. Useful for switching to forks.                                                                                                                                                                                                                   |
 | `VALHEIM_PLUS_RELEASE`      | `latest`                 | Which version of [ValheimPlus](https://github.com/valheimPlus/ValheimPlus) to download. Will default to latest available. To specify a specific tag set to `tags/0.9.9.8`                                                                                                              |
 | `BEPINEX`                   | `false`                  | Whether [BepInExPack Valheim](https://valheim.thunderstore.io/package/denikson/BepInExPack_Valheim/) mod should be loaded (config in `/config/bepinex`, plugins in `/config/bepinex/plugins`). Can not be used together with `VALHEIM_PLUS`.                                           |
+| `PLUGIN_HEALTH_CHECK`       | `true`                   | Watch the mod loader log for plugin/game API incompatibility and mark the container unhealthy when it is detected (`true` or `false`). Only active when `BEPINEX` or `VALHEIM_PLUS` is enabled. |
+| `PLUGIN_HEALTH_CHECK_INTERVAL` | `60`                  | How often, in seconds, to scan the mod loader log for new reflection failures |
+| `PLUGIN_HEALTH_CHECK_THRESHOLD` | `25`                 | Number of reflection failures (`MissingMethodException` and friends) within one interval before the server is marked unhealthy |
+| `PLUGIN_HEALTH_LOG_MAX_BYTES` | `268435456`            | Truncate the mod loader log once it exceeds this size, in bytes. A plugin failing every frame can write hundreds of MB per hour. Set to `0` to disable. |
 | `SUPERVISOR_HTTP`           | `false`                  | Turn on supervisor's http server                                                                                                                                                                                                                                                       |
 | `SUPERVISOR_HTTP_PORT`      | `9001`                   | Set supervisor's http server port                                                                                                                                                                                                                                                      |
 | `SUPERVISOR_HTTP_USER`      | `admin`                  | Supervisor http server username                                                                                                                                                                                                                                                        |
@@ -740,6 +744,44 @@ BepInEx plugins must be copied into the `/config/bepinex/plugins/` directory. Fr
 ### Configuration
 
 See [Mod config from Environment Variables](#mod-config-from-environment-variables)
+
+### Plugin health check
+
+A plugin compiled against an older Valheim build keeps loading fine, then throws
+`MissingMethodException` (or `MissingFieldException`, `MissingMemberException`,
+`TypeLoadException`) every time the game calls into it. When that happens inside
+a core loop such as `ZNetScene.Update` or `ZDOMan`, the server process stays up
+and keeps answering the query port while gameplay is quietly broken for the
+players connected to it — a common symptom is that items can no longer be picked
+up, because networked object create/destroy never completes.
+
+Every ordinary liveness signal reads green in that state. The container therefore
+runs a watchdog (`valheim-plugin-health`) that scans the mod loader's
+`LogOutput.log` every `PLUGIN_HEALTH_CHECK_INTERVAL` seconds. If it sees more
+than `PLUGIN_HEALTH_CHECK_THRESHOLD` of those exceptions in one interval, it:
+
+1. logs the diagnosis, the most frequent exception signatures, and the list of
+   installed plugin DLLs, so the offending mod is identifiable from
+   `docker logs`;
+2. sets the server status to `unhealthy`, which makes the container's
+   `HEALTHCHECK` fail — so `docker ps`, Portainer, and any orchestrator watching
+   health will show the problem.
+
+It deliberately does not restart or unload anything: a version-skewed plugin
+needs a decision (update it, replace it, or remove it), and bouncing the server
+would only hide the problem behind a restart loop. Once the errors stop, the
+status returns to `running` on its own.
+
+**To resolve a detection:** read `docker logs` for the `PLUGIN API
+INCOMPATIBILITY DETECTED` block, identify the plugin from the exception
+signatures, then update or remove its DLL from `/config/bepinex/plugins`
+(or `/config/valheimplus/plugins`) and restart the container.
+
+The watchdog also caps the mod loader log at `PLUGIN_HEALTH_LOG_MAX_BYTES`,
+truncating it in place. This matters because a plugin failing every frame writes
+hundreds of MB per hour and there is otherwise no rotation on that file.
+
+Set `PLUGIN_HEALTH_CHECK=false` to turn all of this off.
 
 ## ValheimPlus
 

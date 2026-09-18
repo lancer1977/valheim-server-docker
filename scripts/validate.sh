@@ -23,3 +23,6 @@ for name in sorted(item for item in dir(module) if item.startswith("test_")):
         print(name)
         test()
 PY
+
+echo "== plugin health watchdog"
+bash "${repo_root}/tests/test-plugin-health.sh"

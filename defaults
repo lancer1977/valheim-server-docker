@@ -136,6 +136,15 @@ SYSLOG_REMOTE_AND_LOCAL=${SYSLOG_REMOTE_AND_LOCAL:-true}
 # Server status
 SERVER_STATUS_FILE=${SERVER_STATUS_FILE:-/var/run/valheim/valheim-server.status}
 
+# Plugin health watchdog
+# Detects plugins compiled against a different Valheim build, which throw
+# reflection errors from core game loops every frame while the server keeps
+# looking healthy. See valheim-plugin-health for the full rationale.
+PLUGIN_HEALTH_CHECK=${PLUGIN_HEALTH_CHECK:-true}
+PLUGIN_HEALTH_CHECK_INTERVAL=${PLUGIN_HEALTH_CHECK_INTERVAL:-60}
+PLUGIN_HEALTH_CHECK_THRESHOLD=${PLUGIN_HEALTH_CHECK_THRESHOLD:-25}
+PLUGIN_HEALTH_LOG_MAX_BYTES=${PLUGIN_HEALTH_LOG_MAX_BYTES:-268435456}
+
 # Hooks
 PRE_SUPERVISOR_HOOK=${PRE_SUPERVISOR_HOOK:-}
 PRE_BOOTSTRAP_HOOK=${PRE_BOOTSTRAP_HOOK:-}

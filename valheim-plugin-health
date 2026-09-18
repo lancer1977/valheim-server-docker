@@ -1,0 +1,210 @@
+#!/bin/bash
+# valheim-plugin-health watches the mod loader's log for plugin/game API
+# incompatibility and marks the server unhealthy when it finds it.
+#
+# Why this exists
+# ---------------
+# A BepInEx/ValheimPlus plugin compiled against an older Valheim build throws
+# MissingMethodException (or a sibling reflection error) from inside core game
+# loops -- ZNetScene.Update, ZDOMan, WearNTear -- on *every frame*. The server
+# process stays up, keeps listening on the query port, and stays visible in the
+# server browser. Every liveness signal reads green while gameplay is broken
+# for connected players.
+#
+# Observed 2026-09-17: Serverside_Simulations 1.1.9 against the Unity 6 Valheim
+# build (buildid 25364309) threw ~1M exceptions over 6h45m -- 617k
+# `ZoneSystem.GetZone` plus 383k `ZNetScene.OutsideActiveArea` -- producing a
+# 373 MB log. Because ZNetScene.CreateDestroyObjects was among the throwing
+# call sites, networked object create/destroy never completed, so players could
+# not pick items up. Nothing in the container reported a problem.
+#
+# This watchdog closes that gap: it counts reflection-failure exceptions per
+# interval and, above a threshold, logs loudly and sets the server status to
+# `unhealthy` so `valheim-status` and the container HEALTHCHECK both report it.
+#
+# It deliberately does not restart or unload anything. A version-skewed plugin
+# needs a human decision (update, replace or remove); silently bouncing the
+# server would just hide the problem behind a restart loop.
+
+# Include defaults and common functions. The location is overridable so the
+# unit tests can supply stubs without recreating the container filesystem.
+valheim_etc="${VALHEIM_ETC:-/usr/local/etc/valheim}"
+# shellcheck source=defaults
+. "$valheim_etc/defaults"
+# shellcheck source=common
+. "$valheim_etc/common"
+
+# Byte offset into the loader log that we have already accounted for.
+last_offset=0
+# Set once we have reported a given unhealthy episode, so we do not re-log
+# the same banner every interval.
+reported_unhealthy=false
+
+
+main() {
+    if [ "$PLUGIN_HEALTH_CHECK" != true ]; then
+        info "Plugin health check is disabled - exiting"
+        exit 0
+    fi
+
+    if [ "$BEPINEX" != true ] && [ "$VALHEIM_PLUS" != true ]; then
+        info "No mod loader enabled - plugin health check has nothing to watch, exiting"
+        exit 0
+    fi
+
+    local loader_log
+    loader_log=$(loader_log_path)
+    info "Watching $loader_log for plugin API incompatibility (threshold: $PLUGIN_HEALTH_CHECK_THRESHOLD errors per ${PLUGIN_HEALTH_CHECK_INTERVAL}s)"
+
+    while :; do
+        sleep "$PLUGIN_HEALTH_CHECK_INTERVAL"
+        if server_is_running; then
+            check_loader_log "$loader_log"
+            cap_loader_log "$loader_log"
+        fi
+    done
+}
+
+
+# Resolve the loader log path for whichever mod loader is active. BepInEx
+# writes LogOutput.log under its own install root; ValheimPlus ships BepInEx
+# and does the same under its root.
+loader_log_path() {
+    if [ "$BEPINEX" = true ]; then
+        echo "$bepinex_install_path/BepInEx/LogOutput.log"
+    else
+        echo "$vp_install_path/BepInEx/LogOutput.log"
+    fi
+}
+
+
+# Read only the bytes appended since the previous interval and count
+# reflection-failure exceptions among them.
+#
+# These exception classes mean a plugin called into game code that no longer
+# has the member it was compiled against -- the precise signature of a
+# mod/game version mismatch. They are distinct from ordinary gameplay errors,
+# which is why a rate threshold on them is a reliable signal rather than noise.
+check_loader_log() {
+    local loader_log size new_bytes count signatures
+    loader_log="$1"
+
+    if [ ! -f "$loader_log" ]; then
+        debug "Loader log $loader_log does not exist yet"
+        return
+    fi
+
+    size=$(stat -c %s "$loader_log" 2>/dev/null) || return
+
+    # The log was truncated or rotated out from under us; restart from the top.
+    if [ "$size" -lt "$last_offset" ]; then
+        debug "Loader log shrank ($size < $last_offset) - resetting read offset"
+        last_offset=0
+    fi
+
+    if [ "$size" -eq "$last_offset" ]; then
+        return
+    fi
+
+    new_bytes=$((size - last_offset))
+    count=$(tail -c "$new_bytes" "$loader_log" 2>/dev/null \
+        | grep -cE 'MissingMethodException|MissingFieldException|MissingMemberException|TypeLoadException' )
+    last_offset=$size
+
+    if [ "$count" -ge "$PLUGIN_HEALTH_CHECK_THRESHOLD" ]; then
+        if [ "$reported_unhealthy" != true ]; then
+            # Strip CR first so a Windows-written log does not leave stray
+            # carriage returns inside the grouped signature text.
+            signatures=$(tail -c "$new_bytes" "$loader_log" 2>/dev/null \
+                | tr -d '\r' \
+                | grep -oE '(MissingMethodException|MissingFieldException|MissingMemberException|TypeLoadException).*' \
+                | cut -c1-200 \
+                | sort | uniq -c | sort -rn | head -5)
+            report_unhealthy "$count" "$signatures"
+            reported_unhealthy=true
+        fi
+        update_server_status unhealthy
+    elif [ "$reported_unhealthy" = true ]; then
+        info "Plugin API errors have stopped - server status returning to running"
+        reported_unhealthy=false
+        update_server_status running
+    fi
+}
+
+
+# Log the diagnosis loudly. This goes to syslog, so it surfaces in
+# `docker logs` where an operator will actually see it.
+report_unhealthy() {
+    local count signatures
+    count="$1"
+    signatures="$2"
+
+    error "PLUGIN API INCOMPATIBILITY DETECTED - the server is running but gameplay is likely broken"
+    error "Saw $count reflection failures in the last ${PLUGIN_HEALTH_CHECK_INTERVAL}s. Top signatures:"
+    while IFS= read -r line; do
+        [ -n "$line" ] && error "  $line"
+    done <<< "$signatures"
+    error "This means an installed plugin was built against a different Valheim version than the one running."
+    error "Installed plugins:"
+    list_installed_plugins
+    error "Fix: update or remove the offending plugin from the plugins directory, then restart the container. See the \"Plugin health check\" section of the README."
+}
+
+
+list_installed_plugins() {
+    local plugin_dir
+    if [ "$BEPINEX" = true ]; then
+        plugin_dir="$bepinex_install_path/BepInEx/plugins"
+    else
+        plugin_dir="$vp_install_path/BepInEx/plugins"
+    fi
+
+    if [ ! -d "$plugin_dir" ]; then
+        error "  (plugin directory $plugin_dir not found)"
+        return
+    fi
+
+    local found=false
+    while IFS= read -r dll; do
+        found=true
+        error "  $dll"
+    done < <(find "$plugin_dir" -iname '*.dll' -printf '%P\n' 2>/dev/null | sort)
+
+    if [ "$found" != true ]; then
+        error "  (no plugin DLLs found)"
+    fi
+}
+
+
+# Keep the loader log from growing without bound. A plugin failing every frame
+# writes hundreds of MB per hour; the 2026-09-17 incident produced 373 MB in
+# under seven hours. Truncating in place (rather than renaming) keeps the
+# loader's open file handle valid, so this is safe while the server is running.
+cap_loader_log() {
+    local loader_log size
+    loader_log="$1"
+
+    [ "$PLUGIN_HEALTH_LOG_MAX_BYTES" -le 0 ] && return
+    [ -f "$loader_log" ] || return
+
+    size=$(stat -c %s "$loader_log" 2>/dev/null) || return
+    if [ "$size" -gt "$PLUGIN_HEALTH_LOG_MAX_BYTES" ]; then
+        warn "Loader log $loader_log reached $(iec_size_format "$size") (limit $(iec_size_format "$PLUGIN_HEALTH_LOG_MAX_BYTES")) - truncating"
+        : > "$loader_log"
+        last_offset=0
+    fi
+}
+
+
+shutdown() {
+    debug "Received signal to shut down valheim-plugin-health"
+    exit 0
+}
+
+
+# Tests source this file to exercise the detection functions directly; skip the
+# signal handlers and the watch loop in that case.
+if [ "${PLUGIN_HEALTH_SOURCE_ONLY:-false}" != true ]; then
+    trap shutdown SIGINT SIGTERM
+    main
+fi
