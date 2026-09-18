@@ -64,6 +64,8 @@ COPY valheim-updater /usr/local/bin/
 COPY valheim-plus-updater /usr/local/bin/
 COPY bepinex-updater /usr/local/bin/
 COPY valheim-server /usr/local/bin/
+COPY valheim-plugin-health /usr/local/bin/
+COPY valheim-healthcheck /usr/local/bin/
 COPY defaults /usr/local/etc/valheim/
 COPY common /usr/local/etc/valheim/
 COPY contrib/* /usr/local/share/valheim/contrib/
@@ -76,6 +78,8 @@ RUN if [ "${TESTS:-true}" = true ]; then \
     /usr/local/bin/valheim-is-idle \
     /usr/local/bin/valheim-bootstrap \
     /usr/local/bin/valheim-server \
+    /usr/local/bin/valheim-plugin-health \
+    /usr/local/bin/valheim-healthcheck \
     /usr/local/bin/valheim-updater \
     /usr/local/bin/valheim-plus-updater \
     /usr/local/bin/bepinex-updater \
@@ -195,4 +199,9 @@ EXPOSE 2456-2458/udp
 EXPOSE 9001/tcp
 EXPOSE 80/tcp
 WORKDIR /
+# Reports unhealthy when the server is up but a plugin is throwing reflection
+# errors against the running game build (see valheim-plugin-health).
+# start-period covers Steam download + world load on a cold start.
+HEALTHCHECK --interval=60s --timeout=10s --start-period=15m --retries=3 \
+    CMD /usr/local/bin/valheim-healthcheck
 CMD ["/usr/local/sbin/bootstrap"]

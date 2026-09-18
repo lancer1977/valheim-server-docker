@@ -1,0 +1,45 @@
+#!/bin/bash
+# valheim-healthcheck is the container HEALTHCHECK command.
+#
+# Until now $SERVER_STATUS_FILE was written by valheim-bootstrap and
+# valheim-server but never read by anything, so the lifecycle state it tracked
+# was invisible from outside the container. This turns it into a real signal:
+# `docker ps`, Portainer and any orchestrator now see the difference between a
+# server that is running and one that is running-but-broken.
+#
+# Exit codes follow Docker's contract: 0 healthy, 1 unhealthy. Startup states
+# report unhealthy and are expected to be absorbed by HEALTHCHECK --start-period.
+
+# shellcheck source=/usr/local/etc/valheim/defaults
+. "${VALHEIM_ETC:-/usr/local/etc/valheim}/defaults"
+
+status=unknown
+if [ -f "$SERVER_STATUS_FILE" ]; then
+    status=$(cat "$SERVER_STATUS_FILE" 2>/dev/null)
+fi
+
+case "$status" in
+    running)
+        echo "healthy: server is running"
+        exit 0
+        ;;
+    unhealthy)
+        # Set by valheim-plugin-health when a plugin is throwing reflection
+        # errors against the running game build. The process is alive and
+        # listening, but gameplay is degraded or broken.
+        echo "unhealthy: plugin API incompatibility detected - see container logs"
+        exit 1
+        ;;
+    bootstrapping|starting)
+        echo "starting: server status is $status"
+        exit 1
+        ;;
+    stopping|stopped)
+        echo "unhealthy: server status is $status"
+        exit 1
+        ;;
+    *)
+        echo "unhealthy: unknown server status '$status'"
+        exit 1
+        ;;
+esac

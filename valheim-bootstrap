@@ -143,4 +143,11 @@ fi
 supervisorctl start valheim-updater
 supervisorctl start valheim-backup
 
+# The plugin health watchdog only has something to watch when a mod loader is
+# enabled; it exits immediately otherwise, so starting it unconditionally here
+# keeps the startup path uniform.
+if [ "$PLUGIN_HEALTH_CHECK" = true ]; then
+    supervisorctl start valheim-plugin-health
+fi
+
 exit 0
