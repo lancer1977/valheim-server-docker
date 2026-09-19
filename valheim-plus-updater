@@ -16,25 +16,30 @@ fetch_github_api() {
     local attempt=1
     local delay=1
     local http_code
-    local response
-    local auth_header=""
+    local body_file
+    local -a curl_args=(-sSL -w '%{http_code}')
 
     # Build Authorization header if GITHUB_TOKEN is set
     if [ -n "${GITHUB_TOKEN:-}" ]; then
-        auth_header="-H \"Authorization: token $GITHUB_TOKEN\""
+        curl_args+=(-H "Authorization: token $GITHUB_TOKEN")
         debug "Using GitHub API authentication with token"
     fi
+
+    body_file=$(mktemp) || { error "Failed to create temp file for GitHub API response"; return 1; }
+    # shellcheck disable=SC2064
+    trap "rm -f '$body_file'" RETURN
 
     while [ "$attempt" -le "$max_attempts" ]; do
         debug "Fetching GitHub API (attempt $attempt/$max_attempts): $url"
 
-        # Use -w to get HTTP status code, separate from response body
-        response=$(eval "curl -sfSL $auth_header -w '\n%{http_code}' '$url'")
-        http_code=$(echo "$response" | tail -n 1)
-        response=$(echo "$response" | sed '$d')
+        # Write the response body straight to a file and capture only the
+        # status code on stdout, so there is no fragile split of a combined
+        # curl -w stream (that split previously broke on some curl builds
+        # and fed truncated/garbled JSON to jq downstream).
+        http_code=$(curl "${curl_args[@]}" -o "$body_file" "$url")
 
         if [ "$http_code" = "200" ]; then
-            echo "$response"
+            cat "$body_file"
             return 0
         elif [ "$http_code" = "403" ]; then
             # Rate limit or permission error - retry with backoff
