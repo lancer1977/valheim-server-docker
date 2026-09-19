@@ -22,7 +22,12 @@ fetch_github_api() {
     # Build Authorization header if GITHUB_TOKEN is set
     if [ -n "${GITHUB_TOKEN:-}" ]; then
         curl_args+=(-H "Authorization: token $GITHUB_TOKEN")
-        debug "Using GitHub API authentication with token"
+        # debug() writes to stdout (see logstd in common), and this whole
+        # function's stdout is captured by the caller via command
+        # substitution as the API response body. Without redirecting to
+        # stderr, this log line lands in front of the real JSON and breaks
+        # every downstream jq parse.
+        debug "Using GitHub API authentication with token" >&2
     fi
 
     body_file=$(mktemp) || { error "Failed to create temp file for GitHub API response"; return 1; }
@@ -30,7 +35,7 @@ fetch_github_api() {
     trap "rm -f '$body_file'" RETURN
 
     while [ "$attempt" -le "$max_attempts" ]; do
-        debug "Fetching GitHub API (attempt $attempt/$max_attempts): $url"
+        debug "Fetching GitHub API (attempt $attempt/$max_attempts): $url" >&2
 
         # Write the response body straight to a file and capture only the
         # status code on stdout, so there is no fragile split of a combined
@@ -45,7 +50,7 @@ fetch_github_api() {
             # Rate limit or permission error - retry with backoff
             error "GitHub API returned 403 (rate limited or forbidden) on attempt $attempt/$max_attempts"
             if [ "$attempt" -lt "$max_attempts" ]; then
-                debug "Retrying in ${delay}s (exponential backoff)"
+                debug "Retrying in ${delay}s (exponential backoff)" >&2
                 sleep "$delay"
                 delay=$((delay * 2))
             fi
@@ -53,7 +58,7 @@ fetch_github_api() {
             # Other HTTP error
             error "GitHub API returned HTTP $http_code on attempt $attempt"
             if [ "$attempt" -lt "$max_attempts" ]; then
-                debug "Retrying in ${delay}s (exponential backoff)"
+                debug "Retrying in ${delay}s (exponential backoff)" >&2
                 sleep "$delay"
                 delay=$((delay * 2))
             fi
