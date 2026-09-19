@@ -10,14 +10,66 @@
 . /usr/local/etc/valheim/common
 
 
+fetch_github_api() {
+    local url="$1"
+    local max_attempts=5
+    local attempt=1
+    local delay=1
+    local http_code
+    local response
+    local auth_header=""
+
+    # Build Authorization header if GITHUB_TOKEN is set
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+        auth_header="-H \"Authorization: token $GITHUB_TOKEN\""
+        debug "Using GitHub API authentication with token"
+    fi
+
+    while [ "$attempt" -le "$max_attempts" ]; do
+        debug "Fetching GitHub API (attempt $attempt/$max_attempts): $url"
+
+        # Use -w to get HTTP status code, separate from response body
+        response=$(eval "curl -sfSL $auth_header -w '\n%{http_code}' '$url'")
+        http_code=$(echo "$response" | tail -n 1)
+        response=$(echo "$response" | sed '$d')
+
+        if [ "$http_code" = "200" ]; then
+            echo "$response"
+            return 0
+        elif [ "$http_code" = "403" ]; then
+            # Rate limit or permission error - retry with backoff
+            error "GitHub API returned 403 (rate limited or forbidden) on attempt $attempt/$max_attempts"
+            if [ "$attempt" -lt "$max_attempts" ]; then
+                debug "Retrying in ${delay}s (exponential backoff)"
+                sleep "$delay"
+                delay=$((delay * 2))
+            fi
+        else
+            # Other HTTP error
+            error "GitHub API returned HTTP $http_code on attempt $attempt"
+            if [ "$attempt" -lt "$max_attempts" ]; then
+                debug "Retrying in ${delay}s (exponential backoff)"
+                sleep "$delay"
+                delay=$((delay * 2))
+            fi
+        fi
+
+        attempt=$((attempt + 1))
+    done
+
+    # All retries exhausted
+    error "Failed to fetch GitHub API after $max_attempts attempts"
+    return 1
+}
+
+
 main() {
     local api_response
     local download_url
     local remote_updated_at
 
-    if ! api_response=$(curl -sfSL "https://api.github.com/repos/$VALHEIM_PLUS_REPO/releases/$VALHEIM_PLUS_RELEASE"); then
-        fatal "Error: could not retrieve ValheimPlus release info from Github API"
-    fi
+    api_response=$(fetch_github_api "https://api.github.com/repos/$VALHEIM_PLUS_REPO/releases/$VALHEIM_PLUS_RELEASE") \
+        || fatal "Error: could not retrieve ValheimPlus release info from Github API"
     api_response=$(jq -r ".assets[] | select(.name == \"$vp_zipfile\")" <<< "$api_response" )
     download_url=$(jq -r  ".browser_download_url" <<< "$api_response" )
     remote_updated_at=$(jq -r  ".updated_at" <<< "$api_response" )
