@@ -42,6 +42,28 @@ main() {
             exit 1
         fi
     done
+    echo "Server is now listening on UDP port $SERVER_QUERY_PORT"
+
+    # Regression test for BepInEx injection (#17): verify that BepInEx/LogOutput.log
+    # exists and contains Chainloader, indicating that Doorstop successfully injected BepInEx.
+    if [ "$BEPINEX" = true ]; then
+        echo "Checking BepInEx Chainloader injection..."
+        bepinex_timeout=180
+        bepinex_start_time=$(date +%s)
+        while :; do
+            if [ -f "/opt/valheim/bepinex/BepInEx/LogOutput.log" ] && grep -q "Chainloader" /opt/valheim/bepinex/BepInEx/LogOutput.log; then
+                echo "BepInEx Chainloader confirmed in LogOutput.log"
+                break
+            fi
+            sleep 5
+            bepinex_current_time=$(date +%s)
+            if [ $((bepinex_current_time - bepinex_start_time)) -ge $bepinex_timeout ]; then
+                echo "BepInEx never injected: BepInEx/LogOutput.log missing or has no Chainloader line (see #17)"
+                exit 1
+            fi
+        done
+    fi
+
     echo "Tests passed!"
     exit 0
 }
