@@ -29,3 +29,6 @@ bash "${repo_root}/tests/test-plugin-health.sh"
 
 echo "== bepinex plugin sync"
 bash "${repo_root}/tests/test-bepinex-plugin-sync.sh"
+
+echo "== ensure permissions"
+bash "${repo_root}/tests/test-ensure-permissions.sh"
