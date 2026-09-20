@@ -26,3 +26,6 @@ PY
 
 echo "== plugin health watchdog"
 bash "${repo_root}/tests/test-plugin-health.sh"
+
+echo "== bepinex plugin sync"
+bash "${repo_root}/tests/test-bepinex-plugin-sync.sh"

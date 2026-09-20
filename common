@@ -282,7 +282,14 @@ write_bepinex_config() {
         if env | grep "^$BEPINEX_CFG_ENV_PREFIX" > /dev/null; then
             /usr/local/bin/env2cfg --verbose --config "$config_path/BepInEx.cfg" --env-prefix "$BEPINEX_CFG_ENV_PREFIX"
         fi
-        if [ -d "$config_path/plugins" ] && [ -d "$plugins_path" ]; then
+        if [ -d "$config_path/plugins" ]; then
+            # $plugins_path is BepInEx's own runtime plugin directory. It must
+            # be created here rather than merely checked for: if it doesn't
+            # exist yet (e.g. a fresh BepInEx extraction that hasn't made it
+            # yet), the old `[ -d "$plugins_path" ]` guard silently skipped
+            # the whole sync -- no log line, no error -- and the server booted
+            # with zero plugins loaded despite a fully populated config dir.
+            mkdir -p "$plugins_path"
             info "Syncing BepInEx plugins from $config_path/plugins/ -> $plugins_path"
             rsync -a --itemize-changes "$config_path/plugins/" "$plugins_path"
         fi
