@@ -125,11 +125,17 @@ ensure_permissions() {
     # Legacy worlds directory
     if [ -d "$old_worlds_dir" ]; then
         chmod "$WORLDS_DIRECTORY_PERMISSIONS" "$old_worlds_dir"
-        chmod "$WORLDS_FILE_PERMISSIONS" "${old_worlds_dir}/"*
+        # Use find to distinguish files from directories instead of a blind glob,
+        # which was stripping the execute bit off per-world save directories (#15).
+        find "$old_worlds_dir" -mindepth 1 -maxdepth 1 -type d -exec chmod "$WORLDS_DIRECTORY_PERMISSIONS" {} +
+        find "$old_worlds_dir" -mindepth 1 -maxdepth 1 -type f -exec chmod "$WORLDS_FILE_PERMISSIONS" {} +
     fi
     if [ -d "$worlds_dir" ]; then
         chmod "$WORLDS_DIRECTORY_PERMISSIONS" "$worlds_dir"
-        chmod "$WORLDS_FILE_PERMISSIONS" "${worlds_dir}/"*
+        # Use find to distinguish files from directories instead of a blind glob,
+        # which was stripping the execute bit off per-world save directories (#15).
+        find "$worlds_dir" -mindepth 1 -maxdepth 1 -type d -exec chmod "$WORLDS_DIRECTORY_PERMISSIONS" {} +
+        find "$worlds_dir" -mindepth 1 -maxdepth 1 -type f -exec chmod "$WORLDS_FILE_PERMISSIONS" {} +
     fi
     if [ "$VALHEIM_PLUS" = true ] && [ -d /config/valheimplus ]; then
         find /config/valheimplus -type d -exec chmod "$VALHEIM_PLUS_CONFIG_DIRECTORY_PERMISSIONS" "{}" +
